@@ -3,7 +3,7 @@ const map = L.map('map', {
     zoomControl: false
 }).setView([26.15, -80.25], 11);
 
-// Re-add Zoom Controls to the TOP RIGHT so they don't overlap the legend box
+// Re-add Zoom Controls to the TOP RIGHT
 L.control.zoom({
     position: 'topright'
 }).addTo(map);
@@ -35,6 +35,15 @@ L.Control.geocoder({
 let geojsonData;
 let electionData = {};
 let geojsonLayer;
+
+// Allowed Democratic candidates
+const allowedCandidates = [
+    "Debbie Wasserman Schultz",
+    "Dale Holness",
+    "Elijah Manley",
+    "Sheila Cherfilus-McCormick",
+    "Luther Campbell"
+];
 const mainCandidate = "Debbie Wasserman Schultz";
 
 // Fetch GeoJSON and CSV data concurrently
@@ -69,15 +78,7 @@ Promise.all([
 });
 
 function initMap() {
-    const firstRow = Object.values(electionData)[0];
-    
-    if (!firstRow) {
-        console.error("No valid precinct data found.");
-        return;
-    }
-    
-    const allCandidates = Object.keys(firstRow).filter(col => col !== 'Precinct');
-    const opponents = allCandidates.filter(col => col !== mainCandidate);
+    const opponents = allowedCandidates.filter(col => col !== mainCandidate);
     
     const select = document.getElementById('opponent-select');
     select.innerHTML = ""; 
@@ -105,19 +106,28 @@ function updateMap() {
     const opponentSelect = document.getElementById('opponent-select');
     const opponent = opponentSelect.value;
     
-    // Extract last name of opponent
     let oppLastName = "Opponent";
     if (opponent) {
         const nameParts = opponent.trim().split(" ");
         oppLastName = nameParts[nameParts.length - 1];
     }
 
-    // Dynamically update legend text with last names and color #E6007E
-    const oppLegendLabel = opponent ? `${oppLastName} leads` : "Opponent leads";
+    // Dynamic Gradient Legend UI
+    const oppLabel = opponent ? oppLastName : "Opponent";
     
     document.querySelector('.legend').innerHTML = `
-        <div><span style="background:#08519c"></span> DWS leads</div>
-        <div><span style="background:#E6007E"></span> ${oppLegendLabel}</div>
+        <div style="font-weight:bold; margin-bottom:4px; font-size:11px;">DWS Margin</div>
+        <div><span style="background:#08306b"></span> DWS +30%+</div>
+        <div><span style="background:#2171b5"></span> DWS +15% to 30%</div>
+        <div><span style="background:#6baed6"></span> DWS +5% to 15%</div>
+        <div><span style="background:#c6dbef"></span> DWS &lt;5%</div>
+        <hr style="margin: 6px 0; border:0; border-top:1px solid #ddd;"/>
+        <div style="font-weight:bold; margin-bottom:4px; font-size:11px;">${oppLabel} Margin</div>
+        <div><span style="background:#fcc5e3"></span> ${oppLabel} &lt;5%</div>
+        <div><span style="background:#f768a1"></span> ${oppLabel} +5% to 15%</div>
+        <div><span style="background:#ae017e"></span> ${oppLabel} +15% to 30%</div>
+        <div><span style="background:#49006a"></span> ${oppLabel} +30%+</div>
+        <hr style="margin: 6px 0; border:0; border-top:1px solid #ddd;"/>
         <div><span style="background:#f0f0f0"></span> No data / &lt;10 votes</div>
     `;
 
@@ -133,50 +143,49 @@ function updateMap() {
             if (!data) return { color: 'white', fillColor: '#ccc', weight: 1, fillOpacity: 0.8 }; 
 
             let totalVotes = 0;
-            const candidates = Object.keys(data).filter(key => key !== 'Precinct' && typeof data[key] === 'number');
-            candidates.forEach(key => totalVotes += data[key]);
+            allowedCandidates.forEach(key => {
+                if (typeof data[key] === 'number') {
+                    totalVotes += data[key];
+                }
+            });
 
-            // Exclude precincts with fewer than 10 TOTAL votes
             if (totalVotes < 10) {
                 return { color: 'white', fillColor: '#f0f0f0', weight: 1, fillOpacity: 0.8 };
             }
 
-            let winStatus = "Tie";
+            let winner = "";
+            let margin = 0;
 
             if (!opponent) {
-                // Default View: Find overall max vote getter
-                let maxVotes = -1;
-                let winner = "";
+                // Find top 2 candidates to compute runner-up margin
+                let sorted = allowedCandidates
+                    .map(cand => ({ name: cand, votes: data[cand] || 0 }))
+                    .sort((a, b) => b.votes - a.votes);
                 
-                candidates.forEach(cand => {
-                    if (data[cand] > maxVotes) {
-                        maxVotes = data[cand];
-                        winner = cand;
-                    } else if (data[cand] === maxVotes) {
-                        winner = "Tie";
-                    }
-                });
-
-                if (winner === mainCandidate) {
-                    winStatus = "DWS";
-                } else if (winner !== "Tie" && winner !== "") {
-                    winStatus = "Opponent";
-                }
+                winner = sorted[0].name;
+                const topVotes = sorted[0].votes;
+                const runnerUpVotes = sorted[1] ? sorted[1].votes : 0;
+                margin = (topVotes - runnerUpVotes) / totalVotes;
             } else {
-                // Head-to-head comparison
+                // Head-to-head margin
                 const mainVotes = data[mainCandidate] || 0;
                 const oppVotes = data[opponent] || 0;
-
-                if (mainVotes > oppVotes) winStatus = "DWS";
-                else if (oppVotes > mainVotes) winStatus = "Opponent";
+                
+                if (mainVotes >= oppVotes) {
+                    winner = mainCandidate;
+                    margin = (mainVotes - oppVotes) / totalVotes;
+                } else {
+                    winner = opponent;
+                    margin = (oppVotes - mainVotes) / totalVotes;
+                }
             }
 
             return {
-                fillColor: getColor(winStatus),
+                fillColor: getGradientColor(winner, margin),
                 weight: 1,
                 opacity: 1,
                 color: 'white',
-                fillOpacity: 0.8
+                fillOpacity: 0.85
             };
         },
         onEachFeature: function(feature, layer) {
@@ -185,8 +194,11 @@ function updateMap() {
             
             if (data) {
                 let totalVotes = 0;
-                const candidates = Object.keys(data).filter(key => key !== 'Precinct' && typeof data[key] === 'number');
-                candidates.forEach(key => totalVotes += data[key]);
+                allowedCandidates.forEach(key => {
+                    if (typeof data[key] === 'number') {
+                        totalVotes += data[key];
+                    }
+                });
                 
                 let tooltipContent = `
                     <div style="font-family: Arial, sans-serif;">
@@ -194,14 +206,14 @@ function updateMap() {
                 `;
 
                 if (totalVotes < 10) {
-                    tooltipContent += `<span style="color:#666; font-size:11px;">(Fewer than 10 total votes)</span><br/>`;
+                    tooltipContent += `<span style="color:#666; font-size:11px;">(Fewer than 10 total Dem votes)</span><br/>`;
                 }
                 
                 tooltipContent += `<hr style="margin: 4px 0;"/>`;
                 
-                candidates.sort((a, b) => (data[b] || 0) - (data[a] || 0));
+                const sortedCandidates = [...allowedCandidates].sort((a, b) => (data[b] || 0) - (data[a] || 0));
                 
-                candidates.forEach(cand => {
+                sortedCandidates.forEach(cand => {
                     const votes = data[cand] || 0;
                     const pct = totalVotes ? ((votes / totalVotes) * 100).toFixed(1) : 0;
                     
@@ -219,8 +231,18 @@ function updateMap() {
     }).addTo(map);
 }
 
-function getColor(winStatus) {
-    if (winStatus === "DWS") return '#08519c'; 
-    if (winStatus === "Opponent") return '#E6007E'; // Updated to magenta
-    return '#f0f0f0'; 
+function getGradientColor(winner, margin) {
+    if (winner === mainCandidate) {
+        // DWS Blue Shades
+        if (margin >= 0.30) return '#08306b'; // Deep Navy
+        if (margin >= 0.15) return '#2171b5'; // Medium Dark Blue
+        if (margin >= 0.05) return '#6baed6'; // Medium Blue
+        return '#c6dbef';                     // Soft Light Blue
+    } else {
+        // Opponent Magenta Shades
+        if (margin >= 0.30) return '#49006a'; // Deep Plum/Dark Magenta
+        if (margin >= 0.15) return '#ae017e'; // Rich Magenta
+        if (margin >= 0.05) return '#f768a1'; // Bright Pink/Magenta
+        return '#fcc5e3';                     // Soft Light Pink
+    }
 }
