@@ -1,42 +1,35 @@
-// Initialize the map with default zoom controls disabled
+// Initialize the map centered on Broward County with zoom controls on top-right
 const map = L.map('map', {
     zoomControl: false
 }).setView([26.15, -80.25], 11);
 
-// Re-add Zoom Controls to the TOP RIGHT
 L.control.zoom({
     position: 'topright'
 }).addTo(map);
 
-// Add a clean, light basemap
+// Add a clean basemap
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap contributors & CARTO'
 }).addTo(map);
 
-// Add Address Search Bar
+// Address Search Bar
 L.Control.geocoder({
     defaultMarkGeocode: false,
     placeholder: "Search an address..."
 }).on('markgeocode', function(e) {
     const bbox = e.geocode.bbox;
     const poly = L.polygon([
-        bbox.getSouthEast(),
-        bbox.getNorthEast(),
-        bbox.getNorthWest(),
-        bbox.getSouthWest()
+        bbox.getSouthEast(), bbox.getNorthEast(), bbox.getNorthWest(), bbox.getSouthWest()
     ]);
     map.fitBounds(poly.getBounds());
-    
-    L.marker(e.geocode.center).addTo(map)
-        .bindPopup(e.geocode.name)
-        .openPopup();
+    L.marker(e.geocode.center).addTo(map).bindPopup(e.geocode.name).openPopup();
 }).addTo(map);
 
 let geojsonData;
 let electionData = {};
 let geojsonLayer;
 
-// Allowed Democratic candidates
+// Democratic primary candidates list
 const allowedCandidates = [
     "Debbie Wasserman Schultz",
     "Dale Holness",
@@ -46,9 +39,9 @@ const allowedCandidates = [
 ];
 const mainCandidate = "Debbie Wasserman Schultz";
 
-// Fetch GeoJSON and CSV data concurrently
+// Fetch 2026 GeoJSON and District_20_Precincts.csv concurrently
 Promise.all([
-    fetch('Broward_VoterPrecincts_2024.geojson').then(res => {
+    fetch('Broward_VoterPrecincts_2026.geojson').then(res => {
         if (!res.ok) throw new Error(`Could not find geojson (HTTP ${res.status})`);
         return res.json();
     }),
@@ -66,7 +59,8 @@ Promise.all([
         complete: function(results) {
             results.data.forEach(row => {
                 if(row.Precinct) {
-                    electionData[row.Precinct] = row;
+                    const key = String(row.Precinct).trim().toUpperCase();
+                    electionData[key] = row;
                 }
             });
             initMap();
@@ -79,11 +73,9 @@ Promise.all([
 
 function initMap() {
     const opponents = allowedCandidates.filter(col => col !== mainCandidate);
-    
     const select = document.getElementById('opponent-select');
     select.innerHTML = ""; 
     
-    // Default option: Overall Precinct Winner
     const defaultOption = document.createElement('option');
     defaultOption.value = "";
     defaultOption.text = "Overall Precinct Winner";
@@ -98,7 +90,6 @@ function initMap() {
     });
 
     select.addEventListener('change', updateMap);
-    
     updateMap();
 }
 
@@ -112,7 +103,6 @@ function updateMap() {
         oppLastName = nameParts[nameParts.length - 1];
     }
 
-    // Dynamic Gradient Legend UI
     const oppLabel = opponent ? oppLastName : "Opponent";
     
     document.querySelector('.legend').innerHTML = `
@@ -137,7 +127,8 @@ function updateMap() {
 
     geojsonLayer = L.geoJson(geojsonData, {
         style: function(feature) {
-            const pctId = feature.properties.NAME; 
+            const rawId = feature.properties.PRECINCT || feature.properties.NAME;
+            const pctId = String(rawId).trim().toUpperCase();
             const data = electionData[pctId];
             
             if (!data) return { color: 'white', fillColor: '#ccc', weight: 1, fillOpacity: 0.8 }; 
@@ -157,7 +148,6 @@ function updateMap() {
             let margin = 0;
 
             if (!opponent) {
-                // Find top 2 candidates to compute runner-up margin
                 let sorted = allowedCandidates
                     .map(cand => ({ name: cand, votes: data[cand] || 0 }))
                     .sort((a, b) => b.votes - a.votes);
@@ -167,7 +157,6 @@ function updateMap() {
                 const runnerUpVotes = sorted[1] ? sorted[1].votes : 0;
                 margin = (topVotes - runnerUpVotes) / totalVotes;
             } else {
-                // Head-to-head margin
                 const mainVotes = data[mainCandidate] || 0;
                 const oppVotes = data[opponent] || 0;
                 
@@ -189,7 +178,8 @@ function updateMap() {
             };
         },
         onEachFeature: function(feature, layer) {
-            const pctId = feature.properties.NAME;
+            const rawId = feature.properties.PRECINCT || feature.properties.NAME;
+            const pctId = String(rawId).trim().toUpperCase();
             const data = electionData[pctId];
             
             if (data) {
@@ -233,16 +223,14 @@ function updateMap() {
 
 function getGradientColor(winner, margin) {
     if (winner === mainCandidate) {
-        // DWS Blue Shades
-        if (margin >= 0.30) return '#08306b'; // Deep Navy
-        if (margin >= 0.15) return '#2171b5'; // Medium Dark Blue
-        if (margin >= 0.05) return '#6baed6'; // Medium Blue
-        return '#c6dbef';                     // Soft Light Blue
+        if (margin >= 0.30) return '#08306b';
+        if (margin >= 0.15) return '#2171b5';
+        if (margin >= 0.05) return '#6baed6';
+        return '#c6dbef';
     } else {
-        // Opponent Magenta Shades
-        if (margin >= 0.30) return '#49006a'; // Deep Plum/Dark Magenta
-        if (margin >= 0.15) return '#ae017e'; // Rich Magenta
-        if (margin >= 0.05) return '#f768a1'; // Bright Pink/Magenta
-        return '#fcc5e3';                     // Soft Light Pink
+        if (margin >= 0.30) return '#49006a';
+        if (margin >= 0.15) return '#ae017e';
+        if (margin >= 0.05) return '#f768a1';
+        return '#fcc5e3';
     }
 }
