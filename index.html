@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>District 20 Primary Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Geocoder CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+    <!-- Map Header -->
+    <div id="map-header">
+        <h1>District 20 Democratic primary results by precinct</h1>
+    </div>
+
+    <!-- Floating UI Panel -->
+    <div id="ui-container">
+        <!-- Mobile Toggle Button -->
+        <button id="legend-toggle" onclick="toggleLegend()">
+            <span>Legend & Controls</span> <span id="toggle-icon">▼</span>
+        </button>
+
+        <div id="ui-content">
+            <label for="opponent-select"><strong>Compare Debbie Wasserman Schultz results to:</strong></label>
+            <select id="opponent-select"></select>
+            
+            <div class="legend">
+                <div><span style="background:#08519c"></span> DWS leads</div>
+                <div><span style="background:#cc4c02"></span> Opponent leads</div>
+                <div><span style="background:#f0f0f0"></span> No data</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+    
+    <!-- Map Footer -->
+    <div id="map-footer">
+        SOURCE: Broward County Supervisor of Elections, preliminary results from Aug. 18, 2026, primary.
+    </div>
+
+    <!-- Script Libraries -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="script.js"></script>
+
+    <!-- Mobile Toggle Function -->
+    <script>
+        function toggleLegend() {
+            const container = document.getElementById('ui-container');
+            const icon = document.getElementById('toggle-icon');
+            container.classList.toggle('collapsed');
+            icon.innerText = container.classList.contains('collapsed') ? '▲' : '▼';
+        }
+    </script>
+</body>
+</html>
