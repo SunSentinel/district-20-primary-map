@@ -3,7 +3,7 @@ const map = L.map('map', {
     zoomControl: false
 }).setView([26.15, -80.25], 11);
 
-// Re-add Zoom Controls to the TOP RIGHT so they don't clash with the legend on the left
+// Re-add Zoom Controls to the TOP RIGHT so they don't overlap the legend box
 L.control.zoom({
     position: 'topright'
 }).addTo(map);
@@ -13,7 +13,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap contributors & CARTO'
 }).addTo(map);
 
-// Add Address Search Bar (Placed on Top Right)
+// Add Address Search Bar
 L.Control.geocoder({
     defaultMarkGeocode: false,
     placeholder: "Search an address..."
@@ -112,13 +112,13 @@ function updateMap() {
         oppLastName = nameParts[nameParts.length - 1];
     }
 
-    // Dynamically update legend text with last names and 'No data'
+    // Dynamically update legend text with last names and color #E6007E
     const oppLegendLabel = opponent ? `${oppLastName} leads` : "Opponent leads";
     
     document.querySelector('.legend').innerHTML = `
         <div><span style="background:#08519c"></span> DWS leads</div>
-        <div><span style="background:#cc4c02"></span> ${oppLegendLabel}</div>
-        <div><span style="background:#f0f0f0"></span> No data</div>
+        <div><span style="background:#E6007E"></span> ${oppLegendLabel}</div>
+        <div><span style="background:#f0f0f0"></span> No data / &lt;10 votes</div>
     `;
 
     if (geojsonLayer) {
@@ -136,7 +136,8 @@ function updateMap() {
             const candidates = Object.keys(data).filter(key => key !== 'Precinct' && typeof data[key] === 'number');
             candidates.forEach(key => totalVotes += data[key]);
 
-            if (totalVotes === 0) {
+            // Exclude precincts with fewer than 10 TOTAL votes
+            if (totalVotes < 10) {
                 return { color: 'white', fillColor: '#f0f0f0', weight: 1, fillOpacity: 0.8 };
             }
 
@@ -190,8 +191,13 @@ function updateMap() {
                 let tooltipContent = `
                     <div style="font-family: Arial, sans-serif;">
                         <strong>Precinct ${pctId}</strong><br/>
-                        <hr style="margin: 4px 0;"/>
                 `;
+
+                if (totalVotes < 10) {
+                    tooltipContent += `<span style="color:#666; font-size:11px;">(Fewer than 10 total votes)</span><br/>`;
+                }
+                
+                tooltipContent += `<hr style="margin: 4px 0;"/>`;
                 
                 candidates.sort((a, b) => (data[b] || 0) - (data[a] || 0));
                 
@@ -200,9 +206,9 @@ function updateMap() {
                     const pct = totalVotes ? ((votes / totalVotes) * 100).toFixed(1) : 0;
                     
                     if (opponent && (cand === opponent || cand === mainCandidate)) {
-                        tooltipContent += `<span style="background-color: #ffff99; padding: 2px;">${cand}: <strong>${pct}%</strong></span><br/>`;
+                        tooltipContent += `<span style="background-color: #ffff99; padding: 2px;">${cand}: <strong>${pct}%</strong> (${votes})</span><br/>`;
                     } else {
-                        tooltipContent += `${cand}: <strong>${pct}%</strong><br/>`;
+                        tooltipContent += `${cand}: <strong>${pct}%</strong> (${votes})<br/>`;
                     }
                 });
                 
@@ -215,6 +221,6 @@ function updateMap() {
 
 function getColor(winStatus) {
     if (winStatus === "DWS") return '#08519c'; 
-    if (winStatus === "Opponent") return '#cc4c02'; 
+    if (winStatus === "Opponent") return '#E6007E'; // Updated to magenta
     return '#f0f0f0'; 
 }
