@@ -30,22 +30,24 @@ let electionData = {};
 let geojsonLayer;
 
 // Democratic primary candidates list
+// NOTE: names below must match the CSV header text EXACTLY (including middle
+// initials/nicknames) or that candidate's votes will silently be treated as 0.
 const allowedCandidates = [
     "Debbie Wasserman Schultz",
-    "Dale Holness",
+    "Dale V.C. Holness",
     "Elijah Manley",
     "Sheila Cherfilus-McCormick",
-    "Luther Campbell"
+    "Luther \"UncleLuke\" Campbell"
 ];
 const mainCandidate = "Debbie Wasserman Schultz";
 
-// Fetch 2026 GeoJSON and District_20_Precincts.csv concurrently
+// Fetch 2026 GeoJSON and District_20_Precincts_2026.csv concurrently
 Promise.all([
     fetch('Broward_VoterPrecincts_2026.geojson').then(res => {
         if (!res.ok) throw new Error(`Could not find geojson (HTTP ${res.status})`);
         return res.json();
     }),
-    fetch('District_20_Precincts.csv').then(res => {
+    fetch('District_20_Precincts_2026.csv').then(res => {
         if (!res.ok) throw new Error(`Could not find csv (HTTP ${res.status})`);
         return res.text();
     })
